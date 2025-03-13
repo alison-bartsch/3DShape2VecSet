@@ -18,9 +18,9 @@ Download the preprocessed data from [here](https://drive.google.com/drive/folder
 torchrun \
     --nproc_per_node=4 main_ae.py \
     --accum_iter=2 \
-    --model ae_d512_m512  \
-    --output_dir output/ae/ae_d512_m512 \
-    --log_dir output/ae/ae_d512_m512 \
+    --model kl_d512_m512_l8  \
+    --output_dir output/ae/kl_d512_m512_l8 \
+    --log_dir output/ae/kl_d512_m512_l8 \
     --num_workers 60 \
     --point_cloud_size 2048 \
     --batch_size 64 \
@@ -59,6 +59,10 @@ python sample_class_cond.py \
 ```
 
 Pretrained model can be found [here](https://drive.google.com/drive/folders/1tX4pFulWqtICYgchRXmzscHDRJ5q2iSz?usp=sharing).
+
+## :scroll: Data Processing
+For data processing, please look at this repository:
+[https://github.com/1zb/sdf_gen](https://github.com/1zb/sdf_gen)
 
 ## :e-mail: Contact
 
