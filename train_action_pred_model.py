@@ -9,12 +9,12 @@ from real_world_dataset import ActionPredDataset
 
 dataset_dir = '/home/alison/Documents/Feb26_Human_Demos_Raw/pottery'
 save_dir = '/home/alison/Documents/GitHub/subgoal_diffusion/model_weights/'
-exp_folder = 'latent_action_pred_smaller_lr_more_epochs_more_rots' 
+exp_folder = 'latent_action_pcl_normalized_smaller_lr_scheduler' 
 os.makedirs(save_dir + exp_folder)
 
 # create datasets and dataloaders for train/test
-train_dataset = ActionPredDataset(dataset_dir, [0,1,2,3], 30)
-test_dataset = ActionPredDataset(dataset_dir, [4,5], 30)
+train_dataset = ActionPredDataset(dataset_dir, [0,1,2,3], 5)
+test_dataset = ActionPredDataset(dataset_dir, [4,5], 5)
 train_loader = data.DataLoader(train_dataset, batch_size=8, shuffle=True)
 test_loader = data.DataLoader(test_dataset, batch_size=8, shuffle=True)
 
@@ -31,9 +31,10 @@ action_model = ActionPredModel()
 action_model.to(device)
 
 # setup the training loop
-epochs = 250
+epochs = 50
 best_test_loss = float('inf')
-optimizer = torch.optim.Adam(list(action_model.parameters()), lr=1e-6)
+optimizer = torch.optim.Adam(list(action_model.parameters()), lr=1e-5)
+scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.5)
 
 train_losses = []
 test_losses = []
@@ -55,6 +56,7 @@ for epoch in tqdm(range(epochs)):
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+        scheduler.step()
     train_loss /= len(train_dataset)
     train_losses.append(train_loss)
     print(f'Scaled Train Loss: {train_loss}')

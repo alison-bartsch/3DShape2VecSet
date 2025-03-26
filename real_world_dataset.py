@@ -68,6 +68,14 @@ class ActionPredDataset:
         state1 = self._rotate_pcl(state1, center, aug_rot)
         state2 = self._rotate_pcl(state2, center, aug_rot)
 
+        # center the point clouds about center
+        state1 -= center
+        state2 -= center
+
+        # normalize the state point clouds to be between -1 and 1
+        state1 = state1 / np.max(np.abs(state1))
+        state2 = state2 / np.max(np.abs(state2))
+
         # convert to torch tensors of correct shape/format
         state1 = torch.from_numpy(state1).float()
         state2 = torch.from_numpy(state2).float()

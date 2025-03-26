@@ -13,7 +13,8 @@ class ActionPredModel(torch.nn.Module):
         self.fc22 = torch.nn.Linear(1024, 512)
         self.fc32 = torch.nn.Linear(512, 256)
         
-        self.fc4 = torch.nn.Linear(256, 1)
+        self.fc4 = torch.nn.Linear(2*256, 256)
+        self.fc5 = torch.nn.Linear(256, 1)
 
     def forward(self, x1, x2):
         # flatten x from shape (batch, 512, 8) to (batch, 512*8)
@@ -27,7 +28,11 @@ class ActionPredModel(torch.nn.Module):
         x2 = torch.nn.functional.relu(self.fc22(x2))
         x2 = torch.nn.functional.relu(self.fc32(x2))
          
-        # sum the two latent vectors
-        x = x1 + x2
-        x = self.fc4(x)
+        # # sum the two latent vectors
+        # x = x1 + x2
+
+        # concatenate the two latent vectors
+        x = torch.cat((x1, x2), dim=1)
+        x = torch.nn.functional.relu(self.fc4(x))
+        x = self.fc5(x)
         return x
