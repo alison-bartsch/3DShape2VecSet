@@ -17,7 +17,7 @@ dataset_dir = '/home/alison/Documents/Feb26_Human_Demos_Raw/pottery'
 # os.makedirs(save_dir + exp_folder)
 
 # create datasets and dataloaders for train/test
-train_dataset = ActionPredDataset(dataset_dir, [0,1,2,3], 5)
+train_dataset = ActionPredDataset(dataset_dir, [0,1,2,3], 360)
 test_dataset = ActionPredDataset(dataset_dir, [4,5], 5)
 train_loader = data.DataLoader(train_dataset, batch_size=1, shuffle=True)
 test_loader = data.DataLoader(test_dataset, batch_size=1, shuffle=True)
@@ -44,7 +44,7 @@ for state1, state2, _ in tqdm(train_loader):
     latent2 = ae.encode(state2)[1]
 
     # # create the query grid points
-    density = 45 # 128 original
+    density = 45 # 28 # 64 # 45 # 128 original
     gap = 2. / density
     x = np.linspace(-1, 1, density+1)
     y = np.linspace(-1, 1, density+1)
@@ -71,6 +71,7 @@ for state1, state2, _ in tqdm(train_loader):
     pcd2.points = o3d.utility.Vector3dVector(s1_pcl)
     pcd2.colors = o3d.utility.Vector3dVector(np.array([[0, 0, 1]]*s1_pcl.shape[0]))
     # o3d.visualization.draw_geometries([pcd1, pcd2])
+    o3d.visualization.draw_geometries([pcd2])
 
     # decode the point clouds
     logits = ae.decode(latent1, grid)

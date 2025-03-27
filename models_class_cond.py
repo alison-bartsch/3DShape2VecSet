@@ -176,6 +176,8 @@ class LatentArrayTransformer(nn.Module):
     Finally, reshape to image
     """
 
+    # TODO: this is the model that will need to be modified for goal conditioning!!!
+
     def __init__(self, in_channels, t_channels, n_heads, d_head,
                  depth=1, dropout=0., context_dim=None, out_channels=None):
         super().__init__()
