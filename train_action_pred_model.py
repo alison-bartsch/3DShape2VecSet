@@ -4,6 +4,7 @@ from tqdm import tqdm
 import torch.utils.data as data
 import matplotlib.pyplot as plt
 import models_ae
+import torch.nn as nn
 from action_pred_model import ActionPredModel
 from real_world_dataset import ActionPredDataset
 

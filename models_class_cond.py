@@ -42,6 +42,10 @@ class CrossAttention(nn.Module):
         self.scale = dim_head ** -0.5
         self.heads = heads
 
+        # print("\nInner Dim: ", inner_dim)
+        # print("Query dim:", query_dim)
+        # print("Context dim: ", context_dim)
+
         self.to_q = nn.Linear(query_dim, inner_dim, bias=False)
         self.to_k = nn.Linear(context_dim, inner_dim, bias=False)
         self.to_v = nn.Linear(context_dim, inner_dim, bias=False)
@@ -56,6 +60,10 @@ class CrossAttention(nn.Module):
 
         q = self.to_q(x)
 
+
+        # print("\nheads: ", h)
+        # print("q shape: ", q.shape)
+        # print("context shape: ", context.shape if context is not None else None)
         if context is None:
             context = x
 
@@ -431,7 +439,7 @@ class EDMLoss:
         self.P_std = P_std
         self.sigma_data = sigma_data
 
-    def __call__(self, net, inputs, labels=None, augment_pipe=None):
+    def __call__(self, net, inputs, state_latent=None, goal_latent=None, augment_pipe=None):
         rnd_normal = torch.randn([inputs.shape[0], 1, 1], device=inputs.device)
         # rnd_normal = torch.randn([1, 1, 1], device=inputs.device).repeat(inputs.shape[0], 1, 1)
 
@@ -441,7 +449,7 @@ class EDMLoss:
 
         n = torch.randn_like(y) * sigma
 
-        D_yn = net(y + n, sigma, labels)
+        D_yn = net(y + n, sigma, state_latent, goal_latent)
         loss = weight * ((D_yn - y) ** 2)
         return loss.mean()
 
@@ -461,6 +469,23 @@ class StackedRandomGenerator:
         assert size[0] == len(self.generators)
         return torch.stack([torch.randint(*args, size=size[1:], generator=gen, **kwargs) for gen in self.generators])
 
+class PclConditionalEmbedding(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.linear1 = nn.Linear(512, 512)
+        self.linear2 = nn.Linear(512, 512)
+
+    def forward(self, state_latent, goal_latent):
+        state_latent = self.linear1(state_latent)
+        goal_latent = self.linear2(goal_latent)
+
+        # print("\nState latent shape: ", state_latent.shape)
+        # print("Goal latent shape: ", goal_latent.shape)
+
+        interaction = torch.matmul(state_latent, goal_latent.transpose(1, 2))
+        # print("Interaction shape: ", interaction.shape)
+        return interaction
+        
 
 class EDMPrecond(torch.nn.Module):
     def __init__(self,
@@ -486,16 +511,33 @@ class EDMPrecond(torch.nn.Module):
         self.model = LatentArrayTransformer(in_channels=channels, t_channels=256, n_heads=n_heads, d_head=d_head, depth=depth)
 
         self.category_emb = nn.Embedding(55, n_heads * d_head)
+        # print("\nNheads * Dheads: ", n_heads * d_head)
+
+        
+        self.pcl_conditional_emb = PclConditionalEmbedding()
 
     def emb_category(self, class_labels):
         return self.category_emb(class_labels).unsqueeze(1)
 
-    def forward(self, x, sigma, class_labels=None, force_fp32=False, **model_kwargs):
+    def forward(self, x, sigma, state=None, goal=None, force_fp32=False, **model_kwargs):
                 
-        if class_labels.dtype == torch.float32:
-            cond_emb = class_labels
-        else:
-            cond_emb = self.category_emb(class_labels).unsqueeze(1)
+        # if class_labels.dtype == torch.float32:
+        #     cond_emb = class_labels
+        # else:
+        #     cond_emb = self.category_emb(class_labels).unsqueeze(1)
+
+        # cond_emb = self.pcl_conditional_emb(state, goal)
+        # print("\nCond Emb shape: ", cond_emb.shape)
+        # # cond_emb = goal
+
+        # # create cond_emb torch tensor of shape (batch_size, 512, 512)
+        # cond_emb = torch.ones([x.shape[0], 512, 512], device=x.device)
+        # print("\nCond Emb shape: ", cond_emb.shape)
+
+        cond_emb = torch.matmul(state, goal.transpose(1, 2))
+
+        # NOTE: need to take the state embedding and goal embedding, crossattn with multiple heads, further projection into lower dim
+        # state embedding and goal embedding are each shape [batch_size, 512, 8]
 
         x = x.to(torch.float32)
         sigma = sigma.to(torch.float32).reshape(-1, 1, 1)

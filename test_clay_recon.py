@@ -16,11 +16,11 @@ dataset_dir = '/home/alison/Documents/Feb26_Human_Demos_Raw/pottery'
 # exp_folder = 'latent_action_pcl_normalized_smaller_lr_scheduler' 
 # os.makedirs(save_dir + exp_folder)
 
-# create datasets and dataloaders for train/test
-train_dataset = ActionPredDataset(dataset_dir, [0,1,2,3], 360)
-test_dataset = ActionPredDataset(dataset_dir, [4,5], 5)
-train_loader = data.DataLoader(train_dataset, batch_size=1, shuffle=True)
-test_loader = data.DataLoader(test_dataset, batch_size=1, shuffle=True)
+# # create datasets and dataloaders for train/test
+# train_dataset = ActionPredDataset(dataset_dir, [0,1,2,3], 360)
+# test_dataset = ActionPredDataset(dataset_dir, [4,5], 5)
+# train_loader = data.DataLoader(train_dataset, batch_size=1, shuffle=True)
+# test_loader = data.DataLoader(test_dataset, batch_size=1, shuffle=True)
 
 # load in the pretrained embedding model
 ae_pth = '/home/alison/Downloads/checkpoint-199.pth'
@@ -32,18 +32,36 @@ ae.to(device)
 
 # iterate through the train_loader to embed and reconstruct the point clouds
 ae.eval()
-for state1, state2, _ in tqdm(train_loader):
-    # keep the original point clouds
+# for state1, state2, _ in tqdm(train_loader):
+for i in tqdm(range(0,32,5)):
+    state_path = dataset_dir + '/Trajectory0/unnormalized_pointcloud' + str(i) + '.npy'
+    state1 = np.load(state_path)
+    center = np.mean(state1, axis=0)
+    state1 -= center
+    state1 = state1 / np.max(np.abs(state1))
+    state1 = torch.from_numpy(state1).float()
+    state1 = state1.unsqueeze(0)  # shape: (1, num_points, 3)
+
     s1_pcl = state1.squeeze(0).cpu().numpy()
+    # s2_pcl = state2.squeeze(0).cpu().numpy()
+
+    # state 2 for pcl difference visualization
+    state2 = np.load(dataset_dir + '/Trajectory0/unnormalized_pointcloud' + str(i+1) + '.npy')
+    state2 -= center
+    state2 = state2 / np.max(np.abs(state2))
+    state2 = torch.from_numpy(state2).float()
+    state2 = state2.unsqueeze(0)  # shape: (1, num_points, 3)
+
     s2_pcl = state2.squeeze(0).cpu().numpy()
 
     # embed the point clouds
     state1 = state1.to(device)
-    state2 = state2.to(device)
+    # state2 = state2.to(device)
     latent1 = ae.encode(state1)[1]
-    latent2 = ae.encode(state2)[1]
+    print("Latent1 shape: ", latent1.shape)
+    # latent2 = ae.encode(state2)[1]
 
-    # # create the query grid points
+    # # create the query grid points   
     density = 45 # 28 # 64 # 45 # 128 original
     gap = 2. / density
     x = np.linspace(-1, 1, density+1)
@@ -70,8 +88,10 @@ for state1, state2, _ in tqdm(train_loader):
     pcd2 = o3d.geometry.PointCloud()
     pcd2.points = o3d.utility.Vector3dVector(s1_pcl)
     pcd2.colors = o3d.utility.Vector3dVector(np.array([[0, 0, 1]]*s1_pcl.shape[0]))
-    # o3d.visualization.draw_geometries([pcd1, pcd2])
-    o3d.visualization.draw_geometries([pcd2])
+    pcd3 = o3d.geometry.PointCloud()
+    pcd3.points = o3d.utility.Vector3dVector(s2_pcl)
+    pcd3.colors = o3d.utility.Vector3dVector(np.array([[0, 1, 0]]*s2_pcl.shape[0]))
+    # o3d.visualization.draw_geometries([pcd2, pcd3])
 
     # decode the point clouds
     logits = ae.decode(latent1, grid)
