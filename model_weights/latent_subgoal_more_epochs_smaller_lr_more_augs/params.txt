@@ -1,0 +1,4 @@
+n_epochs: 800
+n_subgoal_steps: 5
+lr_param: 1e-06
+batch: 4

@@ -11,27 +11,32 @@ from util.misc import NativeScalerWithGradNormCount as NativeScaler
 
 dataset_dir = '/home/alison/Documents/Feb26_Human_Demos_Raw/pottery'
 save_dir = '/home/alison/Documents/GitHub/subgoal_diffusion/model_weights/'
-exp_folder = 'latent_subgoal_test' 
+exp_folder = 'latent_subgoal_more_epochs_smaller_lr_more_augs' 
 os.makedirs(save_dir + exp_folder)
 
 # parameters
-n_epochs = 50
-n_subgoal_steps = 3
-lr_param = 1e-5
+n_epochs = 800
+n_subgoal_steps = 5
+lr_param = 1e-6
+batch = 4
 
 # create and save dictionary with parameters
 params = {
     'n_epochs': n_epochs,
     'n_subgoal_steps': n_subgoal_steps,
     'lr_param': lr_param,
+    'batch': batch,
 }
-params_path = os.path.join(save_dir, exp_folder, 'params.txt')
+# write params to text file
+with open(save_dir + exp_folder + '/params.txt', 'w') as f:
+    for key, value in params.items():
+        f.write(f'{key}: {value}\n')
 
 # create datasets and dataloaders for train/test
-train_dataset = SubGoalDataset(dataset_dir, [0,1,2,3], 5, n_subgoal_steps)
-test_dataset = SubGoalDataset(dataset_dir, [4,5], 5, n_subgoal_steps)
-train_loader = data.DataLoader(train_dataset, batch_size=8, shuffle=True)
-test_loader = data.DataLoader(test_dataset, batch_size=8, shuffle=True)
+train_dataset = SubGoalDataset(dataset_dir, [0,1,2,3], 3, n_subgoal_steps)
+test_dataset = SubGoalDataset(dataset_dir, [4,5], 3, n_subgoal_steps)
+train_loader = data.DataLoader(train_dataset, batch_size=batch, shuffle=True)
+test_loader = data.DataLoader(test_dataset, batch_size=batch, shuffle=True)
 
 # load in the pretrained embedding model
 ae_pth = '/home/alison/Downloads/checkpoint-199.pth'
