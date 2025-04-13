@@ -242,7 +242,7 @@ class LatentArrayTransformer(nn.Module):
         return x
 
 def edm_sampler(
-    net, latents, class_labels=None, randn_like=torch.randn_like,
+    net, latents, state=None, goal=None, randn_like=torch.randn_like,
     num_steps=18, sigma_min=0.002, sigma_max=80, rho=7,
     # S_churn=40, S_min=0.05, S_max=50, S_noise=1.003,
     S_churn=0, S_min=0, S_max=float('inf'), S_noise=1,
@@ -267,13 +267,13 @@ def edm_sampler(
         x_hat = x_cur + (t_hat ** 2 - t_cur ** 2).sqrt() * S_noise * randn_like(x_cur)
 
         # Euler step.
-        denoised = net(x_hat, t_hat, class_labels).to(torch.float64)
+        denoised = net(x_hat, t_hat, state, goal).to(torch.float64)
         d_cur = (x_hat - denoised) / t_hat
         x_next = x_hat + (t_next - t_hat) * d_cur
 
         # Apply 2nd order correction.
         if i < num_steps - 1:
-            denoised = net(x_next, t_next, class_labels).to(torch.float64)
+            denoised = net(x_next, t_next, state, goal).to(torch.float64)
             d_prime = (x_next - denoised) / t_next
             x_next = x_hat + (t_next - t_hat) * (0.5 * d_cur + 0.5 * d_prime)
 
@@ -557,10 +557,11 @@ class EDMPrecond(torch.nn.Module):
         return torch.as_tensor(sigma)
     
     @torch.no_grad()
-    def sample(self, cond, batch_seeds=None):
+    def sample(self, state_cond, goal_cond, batch_seeds=None):
         # print(batch_seeds)
-        if cond is not None:
-            batch_size, device = *cond.shape, cond.device
+        if state_cond is not None:
+            # batch_size, device = *state_cond.shape, state_cond.device
+            batch_size, device = state_cond.shape[0], state_cond.device
             if batch_seeds is None:
                 batch_seeds = torch.arange(batch_size)
         else:
@@ -573,7 +574,7 @@ class EDMPrecond(torch.nn.Module):
         rnd = StackedRandomGenerator(device, batch_seeds)
         latents = rnd.randn([batch_size, self.n_latents, self.channels], device=device)
 
-        return edm_sampler(self, latents, cond, randn_like=rnd.randn_like)
+        return edm_sampler(self, latents, state_cond, goal_cond, randn_like=rnd.randn_like)
 
 
 def kl_d512_m512_l8_edm():
