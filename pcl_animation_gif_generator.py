@@ -129,8 +129,8 @@ def make_gif(img_sequence, filename='point_cloud_animation.gif', duration=100):
 
 if __name__ == "__main__":
     pcl = np.load('/home/alison/Documents/Feb26_Human_Demos_Raw/pottery/Trajectory3/unnormalized_pointcloud16.npy')
-    img_list = animate_point_cloud(pcl, view='side')
-    make_gif(img_list, filename='point_cloud_animation.gif', duration=100)
+    img_list = animate_point_cloud(pcl, view='isometric', pltmap='spring')
+    make_gif(img_list, filename='point_cloud_animation_test.gif', duration=100)
     # vis_fov_point_cloud(pcl)
 
 # NOTE: we want to visualize from 2x or 3x views

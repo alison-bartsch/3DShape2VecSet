@@ -14,6 +14,8 @@ import models_class_cond
 from real_world_dataset import SubGoalDataset
 from util.misc import NativeScalerWithGradNormCount as NativeScaler
 from pcl_animation_gif_generator import generate_colormap
+from dist_utils import *
+
 dataset_dir = '/home/alison/Documents/Feb26_Human_Demos_Raw/pottery'
 save_dir = '/home/alison/Documents/GitHub/subgoal_diffusion/model_weights/'
 # exp_folder = 'latent_subgoal_more_epochs_smaller_lr_more_augs'  # works okay
@@ -122,6 +124,12 @@ for i in range(0, goal_idx, n_subgoal_steps):
     one_step_pcl.colors = o3d.utility.Vector3dVector(generate_colormap(verts, pltmap='autumn'))
     o3d.visualization.draw_geometries([one_step_pcl])
 
+    # calculate cd/emd/hd between the gt and predicted subgoal
+    dist_metrics = {'CD': chamfer(gt_subgoal, verts),
+                    'EMD': emd(gt_subgoal, verts),
+                    'HAUSDORFF': hausdorff(gt_subgoal, verts)}
+    print("\nSingle-step distance metrics: ", dist_metrics)
+
     # if not first state
     print("i: ", i)
     if i != 0:
@@ -156,6 +164,12 @@ for i in range(0, goal_idx, n_subgoal_steps):
         autoregressive_subgoal_pcl.colors = o3d.utility.Vector3dVector(generate_colormap(verts, pltmap='winter'))
         o3d.visualization.draw_geometries([autoregressive_subgoal_pcl])
         # o3d.visualization.draw_geometries([gt_subgoal_pcl, one_step_pcl, autoregressive_subgoal_pcl])
+
+        # TODO: calcualte cd/emd between gt and autoregressive subgoal
+        dist_metrics = {'CD': chamfer(gt_subgoal, verts),
+                        'EMD': emd(gt_subgoal, verts),
+                        'HAUSDORFF': hausdorff(gt_subgoal, verts)}
+        print("Autoregressive distance metrics: ", dist_metrics)
 
     # set previous predicted state to verts array downsampled to 2048 points
     idxs = np.random.choice(verts.shape[0], 2048, replace=False)
