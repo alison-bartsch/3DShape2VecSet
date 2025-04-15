@@ -13,7 +13,7 @@ import models_ae
 import models_class_cond
 from real_world_dataset import SubGoalDataset
 from util.misc import NativeScalerWithGradNormCount as NativeScaler
-from pcl_animation_gif_generator import generate_colormap
+from pcl_animation_gif_generator import generate_colormap, animate_point_cloud, make_gif
 from dist_utils import *
 
 dataset_dir = '/home/alison/Documents/Feb26_Human_Demos_Raw/pottery'
@@ -24,6 +24,10 @@ exp_folder = 'latent_subgoal_more_epochs' # FANTASTIC!!!!!
 # exp_folder = 'latent_subgoal_more_epochs_larger_lr_more_augs' # pretty great!!!
 # exp_folder = 'latent_subgoal_more_epochs_larger_lr_scheduler' # decent
 # exp_folder = 'latent_subgoal_test'  # the worst
+
+vis_path = '/home/alison/Documents/GitHub/subgoal_diffusion/subgoal_evals/'
+if not os.path.exists(vis_path + exp_folder):
+    os.makedirs(vis_path + exp_folder)
 
 
 # define the step size for g.t. visualization
@@ -51,10 +55,15 @@ model.to(device)
 # Trajectory3: 26
 # Trajectory4: 17
 # Trajectory5: 23
-traj_path = dataset_dir + '/Trajectory0'
+traj = '/Trajectory0'
+traj_path = dataset_dir + traj
 n_states = 33
 goal_idx = n_states - (n_states % n_subgoal_steps) - 1
 og_goal = np.load(traj_path + '/unnormalized_pointcloud' + str(goal_idx) + '.npy')
+
+if not os.path.exists(vis_path + exp_folder + traj):
+    os.makedirs(vis_path + exp_folder + traj)
+full_save_path = vis_path + exp_folder + traj + '/'
 
 # iterate through a g.t. trajectory with n_subgoal_steps size
 for i in range(0, goal_idx, n_subgoal_steps):
@@ -109,31 +118,34 @@ for i in range(0, goal_idx, n_subgoal_steps):
     m = trimesh.Trimesh(verts, faces)
     # m.show()
 
-    # ground truth next state in green
-    gt_subgoal_pcl = o3d.geometry.PointCloud()
-    gt_subgoal_pcl.points = o3d.utility.Vector3dVector(gt_subgoal)
-    # gt_subgoal_pcl.colors = o3d.utility.Vector3dVector(np.array([[0, 1, 0]]*gt_subgoal.shape[0]))
-    gt_subgoal_pcl.colors = o3d.utility.Vector3dVector(generate_colormap(gt_subgoal, pltmap='summer'))
-    o3d.visualization.draw_geometries([gt_subgoal_pcl])
+    # # ground truth next state in green
+    # gt_subgoal_pcl = o3d.geometry.PointCloud()
+    # gt_subgoal_pcl.points = o3d.utility.Vector3dVector(gt_subgoal)
+    # gt_subgoal_pcl.colors = o3d.utility.Vector3dVector(generate_colormap(gt_subgoal, pltmap='summer'))
+    # o3d.visualization.draw_geometries([gt_subgoal_pcl])
 
-    # one-step pcl in red
-    print("\nVerts shape: ", verts.shape)
-    one_step_pcl = o3d.geometry.PointCloud()
-    one_step_pcl.points = o3d.utility.Vector3dVector(verts)
-    # one_step_pcl.colors = o3d.utility.Vector3dVector(np.array([[1, 0, 0]]*verts.shape[0]))
-    one_step_pcl.colors = o3d.utility.Vector3dVector(generate_colormap(verts, pltmap='autumn'))
-    o3d.visualization.draw_geometries([one_step_pcl])
+    gt_subgoal_list = animate_point_cloud(gt_subgoal, view='isometric', pltmap='summer')
+    make_gif(gt_subgoal_list, filename=full_save_path+'gt_subgoal'+str(i)+'.gif', duration=100)
+
+    # # one-step pcl in red
+    # one_step_pcl = o3d.geometry.PointCloud()
+    # one_step_pcl.points = o3d.utility.Vector3dVector(verts)
+    # one_step_pcl.colors = o3d.utility.Vector3dVector(generate_colormap(verts, pltmap='autumn'))
+    # o3d.visualization.draw_geometries([one_step_pcl])
+
+    one_step_subgoal_list = animate_point_cloud(verts, view='isometric', pltmap='autumn')
+    make_gif(one_step_subgoal_list, filename=full_save_path+'one_step_subgoal'+str(i)+'.gif', duration=100)
 
     # calculate cd/emd/hd between the gt and predicted subgoal
     dist_metrics = {'CD': chamfer(gt_subgoal, verts),
                     'EMD': emd(gt_subgoal, verts),
                     'HAUSDORFF': hausdorff(gt_subgoal, verts)}
     print("\nSingle-step distance metrics: ", dist_metrics)
+    with open(full_save_path + 'single_step_dist_metrics_' + str(i) + '.txt', 'w') as f:
+        f.write(str(dist_metrics))
 
     # if not first state
-    print("i: ", i)
     if i != 0:
-        print("here!")
         # predict the subgoal given the previous subgoal as the conditioning state
         autoregressive_state = prev_state - center
         autoregressive_state = autoregressive_state / np.max(np.abs(autoregressive_state))
@@ -157,19 +169,23 @@ for i in range(0, goal_idx, n_subgoal_steps):
         m = trimesh.Trimesh(verts, faces)
         # m.show()
 
-        # visualize autoregressive pcl in blue
-        autoregressive_subgoal_pcl = o3d.geometry.PointCloud()
-        autoregressive_subgoal_pcl.points = o3d.utility.Vector3dVector(verts)
-        # autoregressive_subgoal_pcl.colors = o3d.utility.Vector3dVector(np.array([[0, 0, 1]]*verts.shape[0]))
-        autoregressive_subgoal_pcl.colors = o3d.utility.Vector3dVector(generate_colormap(verts, pltmap='winter'))
-        o3d.visualization.draw_geometries([autoregressive_subgoal_pcl])
-        # o3d.visualization.draw_geometries([gt_subgoal_pcl, one_step_pcl, autoregressive_subgoal_pcl])
+        # # visualize autoregressive pcl in blue
+        # autoregressive_subgoal_pcl = o3d.geometry.PointCloud()
+        # autoregressive_subgoal_pcl.points = o3d.utility.Vector3dVector(verts)
+        # autoregressive_subgoal_pcl.colors = o3d.utility.Vector3dVector(generate_colormap(verts, pltmap='winter'))
+        # o3d.visualization.draw_geometries([autoregressive_subgoal_pcl])
+        
+
+        autoregressive_subgoal_list = animate_point_cloud(verts, view='isometric', pltmap='winter')
+        make_gif(autoregressive_subgoal_list, filename=full_save_path+'autoregressive_subgoal'+str(i)+'.gif', duration=100)
 
         # TODO: calcualte cd/emd between gt and autoregressive subgoal
         dist_metrics = {'CD': chamfer(gt_subgoal, verts),
                         'EMD': emd(gt_subgoal, verts),
                         'HAUSDORFF': hausdorff(gt_subgoal, verts)}
         print("Autoregressive distance metrics: ", dist_metrics)
+        with open(full_save_path + 'autoregressive_dist_metrics_' + str(i) + '.txt', 'w') as f:
+            f.write(str(dist_metrics))
 
     # set previous predicted state to verts array downsampled to 2048 points
     idxs = np.random.choice(verts.shape[0], 2048, replace=False)
