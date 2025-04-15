@@ -11,13 +11,13 @@ from util.misc import NativeScalerWithGradNormCount as NativeScaler
 
 dataset_dir = '/home/alison/Documents/Feb26_Human_Demos_Raw/pottery'
 save_dir = '/home/alison/Documents/GitHub/subgoal_diffusion/model_weights/'
-exp_folder = 'latent_subgoal_more_epochs_even_larger_lr_scheduler' 
+exp_folder = 'latent_subgoal_10_subgoal_steps'
 os.makedirs(save_dir + exp_folder)
 
 # parameters
 n_epochs = 800
-n_subgoal_steps = 5
-lr_param = 1e-3
+n_subgoal_steps = 10
+lr_param = 1e-5
 batch = 4
 
 # create and save dictionary with parameters
@@ -54,13 +54,13 @@ n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 optimizer = torch.optim.AdamW(model_without_ddp.parameters(), lr=lr_param)
 # loss_scaler = NativeScaler()
-loss_scaler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[50, 100, 200, 300, 400, 500], gamma=0.1)
+# loss_scaler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[50, 100, 200, 300, 400, 500], gamma=0.1)
 
 criterion = models_class_cond.__dict__['EDMLoss']()
 
 print("criterion = %s" % str(criterion))
 
-
+prev_best_test_loss = float('inf')
 for epoch in tqdm(range(n_epochs)):
     # train for one epoch
     model.train(True)
@@ -85,7 +85,7 @@ for epoch in tqdm(range(n_epochs)):
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-    loss_scaler.step()
+    # loss_scaler.step()
     train_loss /= len(train_dataset)
     print(f'Epoch: {epoch}, Scaled Train Loss: {train_loss}')
 
@@ -112,6 +112,10 @@ for epoch in tqdm(range(n_epochs)):
 
         # save the model weights
         torch.save(model.state_dict(), save_dir + exp_folder + '/best_diffusion_model.pt')
+
+        if test_loss < prev_best_test_loss:
+            prev_best_test_loss = test_loss
+            torch.save(model.state_dict(), save_dir + exp_folder + '/best_test_loss_diffusion_model.pt')
 
         # save the test loss to .txt file
         with open(save_dir + exp_folder + '/test_loss.txt', 'a') as f:

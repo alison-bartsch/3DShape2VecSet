@@ -13,10 +13,16 @@ import models_ae
 import models_class_cond
 from real_world_dataset import SubGoalDataset
 from util.misc import NativeScalerWithGradNormCount as NativeScaler
-
+from pcl_animation_gif_generator import generate_colormap
 dataset_dir = '/home/alison/Documents/Feb26_Human_Demos_Raw/pottery'
 save_dir = '/home/alison/Documents/GitHub/subgoal_diffusion/model_weights/'
-exp_folder = 'latent_subgoal_more_epochs_even_larger_lr_scheduler' 
+# exp_folder = 'latent_subgoal_more_epochs_smaller_lr_more_augs'  # works okay
+exp_folder = 'latent_subgoal_more_epochs' # FANTASTIC!!!!!
+# exp_folder = 'latent_subgoal_more_epochs_even_larger_lr_scheduler' # bad
+# exp_folder = 'latent_subgoal_more_epochs_larger_lr_more_augs' # pretty great!!!
+# exp_folder = 'latent_subgoal_more_epochs_larger_lr_scheduler' # decent
+# exp_folder = 'latent_subgoal_test'  # the worst
+
 
 # define the step size for g.t. visualization
 n_subgoal_steps = 5
@@ -37,8 +43,14 @@ model.load_state_dict(torch.load(model_pth, map_location='cpu')) #['model'])
 model.to(device)
 
 # load in the g.t. goal
-traj_path = dataset_dir + '/Trajectory1'
-n_states = 26
+# Trajectory0: 33
+# Trajectory1: 27
+# Trajectory2: 26
+# Trajectory3: 26
+# Trajectory4: 17
+# Trajectory5: 23
+traj_path = dataset_dir + '/Trajectory0'
+n_states = 33
 goal_idx = n_states - (n_states % n_subgoal_steps) - 1
 og_goal = np.load(traj_path + '/unnormalized_pointcloud' + str(goal_idx) + '.npy')
 
@@ -98,19 +110,17 @@ for i in range(0, goal_idx, n_subgoal_steps):
     # ground truth next state in green
     gt_subgoal_pcl = o3d.geometry.PointCloud()
     gt_subgoal_pcl.points = o3d.utility.Vector3dVector(gt_subgoal)
-    gt_subgoal_pcl.colors = o3d.utility.Vector3dVector(np.array([[0, 1, 0]]*gt_subgoal.shape[0]))
+    # gt_subgoal_pcl.colors = o3d.utility.Vector3dVector(np.array([[0, 1, 0]]*gt_subgoal.shape[0]))
+    gt_subgoal_pcl.colors = o3d.utility.Vector3dVector(generate_colormap(gt_subgoal, pltmap='summer'))
     o3d.visualization.draw_geometries([gt_subgoal_pcl])
 
     # one-step pcl in red
     print("\nVerts shape: ", verts.shape)
     one_step_pcl = o3d.geometry.PointCloud()
     one_step_pcl.points = o3d.utility.Vector3dVector(verts)
-    one_step_pcl.colors = o3d.utility.Vector3dVector(np.array([[1, 0, 0]]*verts.shape[0]))
+    # one_step_pcl.colors = o3d.utility.Vector3dVector(np.array([[1, 0, 0]]*verts.shape[0]))
+    one_step_pcl.colors = o3d.utility.Vector3dVector(generate_colormap(verts, pltmap='autumn'))
     o3d.visualization.draw_geometries([one_step_pcl])
-
-    # set previous predicted state to verts array downsampled to 2048 points
-    idxs = np.random.choice(verts.shape[0], 2048, replace=False)
-    prev_state = verts[idxs]
 
     # if not first state
     print("i: ", i)
@@ -142,6 +152,11 @@ for i in range(0, goal_idx, n_subgoal_steps):
         # visualize autoregressive pcl in blue
         autoregressive_subgoal_pcl = o3d.geometry.PointCloud()
         autoregressive_subgoal_pcl.points = o3d.utility.Vector3dVector(verts)
-        autoregressive_subgoal_pcl.colors = o3d.utility.Vector3dVector(np.array([[0, 0, 1]]*verts.shape[0]))
+        # autoregressive_subgoal_pcl.colors = o3d.utility.Vector3dVector(np.array([[0, 0, 1]]*verts.shape[0]))
+        autoregressive_subgoal_pcl.colors = o3d.utility.Vector3dVector(generate_colormap(verts, pltmap='winter'))
         o3d.visualization.draw_geometries([autoregressive_subgoal_pcl])
         # o3d.visualization.draw_geometries([gt_subgoal_pcl, one_step_pcl, autoregressive_subgoal_pcl])
+
+    # set previous predicted state to verts array downsampled to 2048 points
+    idxs = np.random.choice(verts.shape[0], 2048, replace=False)
+    prev_state = verts[idxs]
