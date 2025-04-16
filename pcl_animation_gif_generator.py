@@ -13,7 +13,7 @@ def animate_point_cloud(pcl, view='isometric', pltmap='viridis'):
     vis = o3d.visualization.Visualizer()
     vis.create_window(width=1920, height=1080)
 
-    # setr the point size
+    # set the point size
     ro = vis.get_render_option()
     ro.point_size = 10.0
 
@@ -40,6 +40,7 @@ def animate_point_cloud(pcl, view='isometric', pltmap='viridis'):
     img_sequence.append(img)
 
     ctr.convert_from_pinhole_camera_parameters(parameters, True)
+    ctr.set_zoom(0.75)
 
     for i in range(360):
         geometry.points = o3d.utility.Vector3dVector(pcl)
@@ -48,7 +49,7 @@ def animate_point_cloud(pcl, view='isometric', pltmap='viridis'):
         # Rotate the point cloud around the z-axis
         R = geometry.get_rotation_matrix_from_xyz((0, 0, np.radians(i)))
         geometry.rotate(R, center=np.mean(pcl, axis=0))
-        time.sleep(0.05)
+        time.sleep(0.025)
         
         
         # Update the visualizer
@@ -129,7 +130,7 @@ def make_gif(img_sequence, filename='point_cloud_animation.gif', duration=100):
 
 if __name__ == "__main__":
     pcl = np.load('/home/alison/Documents/Feb26_Human_Demos_Raw/pottery/Trajectory3/unnormalized_pointcloud16.npy')
-    img_list = animate_point_cloud(pcl, view='isometric', pltmap='spring')
+    img_list = animate_point_cloud(pcl, view='top', pltmap='spring')
     make_gif(img_list, filename='point_cloud_animation_test.gif', duration=100)
     # vis_fov_point_cloud(pcl)
 
