@@ -1,6 +1,7 @@
 import os
 import math
 import torch
+import json
 import numpy as np
 from scipy.spatial.transform import Rotation
 
@@ -179,8 +180,17 @@ class SubGoalDataset:
         state = torch.from_numpy(state).float()
         next_state = torch.from_numpy(next_state).float()
         goal = torch.from_numpy(goal).float()
+        # state_idx = torch.tensor(state_idx).unsqueeze(0).float()
+
+        # normalize state idx to be between 0 and 1 (0 means start of trajectory, 1 means end of trajectory or goal_idx)
+        # norm_state_idx = state_idx / goal_idx
+        # norm_state_idx = torch.tensor(norm_state_idx).unsqueeze(0).float()
+        # NOTE: not normalizing state idx because at autoregressive rollout, we don't necessarily know how many steps away the goal is!
+
+
+        state_idx = torch.tensor(state_idx).unsqueeze(0).float()
         
-        return state, next_state, goal
+        return state, next_state, goal, state_idx
 
 class ReconDataset:
     def __init__(self, dataset_dir, trajectory_list, rot_aug):
@@ -261,7 +271,112 @@ class ReconDataset:
         
         return state1, state2, n_actions
 
-# get number of states in each trajectory
-    # we know the # of state pairs per trajectory = permutation of the # of states
+class SubGoalQualityDataset:
+    def __init__(self, model_name, sub_goal_step=3, n_runs = 5, train=True):
+        self.n_runs = n_runs
+        self.train = train
+        self.sub_goal_step = sub_goal_step
+        self.model_name = model_name
+        self.subgoal_data_path = '/home/alison/Documents/GitHub/subgoal_diffusion/subgoal_evals/' + model_name 
+        self.state_data_path = '/home/alison/Documents/Feb26_Human_Demos_Raw/pottery'
+        if self.train:
+            self.data_dict = {'/Trajectory0': 33, 
+                              '/Trajectory1': 27, 
+                              '/Trajectory2': 26, 
+                              '/Trajectory3': 26}
+        else:
+            self.data_dict = {'/Trajectory4': 17, 
+                              '/Trajectory5': 23}
+            
+        self.dataloding_dict = self._get_dataloading_dict()
 
-# dataloader needs to know the # of trajectories and the # of states per trajectory and the rotation augmentation degree
+    def _get_dataloading_dict(self):
+        dataloading_dict = {}
+        idx = 0
+        # iterate through trajectories
+        # for value in self.data_dict.values():
+        for traj, value in self.data_dict.items():
+            # iterate through states of the trajectory
+            for i in range(0, value - (value % self.sub_goal_step) - 2 - self.sub_goal_step, self.sub_goal_step):
+                for run in range(self.n_runs):
+                    # do the process twice for single-step and auto-regressive
+                    state_idx = i 
+                    goal_idx = value - (value % self.sub_goal_step) - self.sub_goal_step
+                    subgoal_idx = i 
+                    single_step = True
+                    dataloading_dict[idx] = [traj, state_idx, goal_idx, subgoal_idx, run, single_step]
+                    idx += 1
+
+                    if i != 0:
+                        single_step = False
+                        dataloading_dict[idx] = [traj, state_idx, goal_idx, subgoal_idx, run, single_step]
+                        idx += 1
+        return dataloading_dict
+    
+    def load_dist_data(self, txt_file_path):
+        '''
+        Read in a txt file which is a disctionary into a python dictionary, but the entire dictionary is on one line.
+        The dictionary contains the following keys: 'CD', 'EMD', 'HAUSDORFF'.
+        '''
+        # load the data
+        for line in open(txt_file_path, 'r'):
+            # replace single quotes with double quotes
+            line = line.replace("'", '"')
+            data = json.loads(line)
+
+        cd = data['CD']
+        emd = data['EMD']
+        hd = data['HAUSDORFF']
+        return cd, emd, hd
+
+    def __len__(self):
+        data_list1 = self.n_runs * [len(np.arange(0, value - (value % self.sub_goal_step) - 2 - self.sub_goal_step, self.sub_goal_step)) for value in self.data_dict.values()]
+        data_list2 = self.n_runs * [len(np.arange(0, value - (value % self.sub_goal_step) - 2 - self.sub_goal_step, self.sub_goal_step)) - 1 for value in self.data_dict.values()]
+        return sum(data_list1) + sum(data_list2)
+
+    def __getitem__(self, idx):
+        traj = self.dataloding_dict[idx][0]
+        state_idx = self.dataloding_dict[idx][1]
+        goal_idx = self.dataloding_dict[idx][2]
+        subgoal_idx = self.dataloding_dict[idx][3]
+        run = self.dataloding_dict[idx][4]
+        single_step = self.dataloding_dict[idx][5]
+        
+        # load in the point clouds
+        state = np.load(self.state_data_path + traj + '/unnormalized_pointcloud' + str(state_idx) + '.npy')
+        goal = np.load(self.state_data_path + traj + '/unnormalized_pointcloud' + str(goal_idx) + '.npy')
+        if single_step:
+            subgoal = np.load(self.subgoal_data_path + traj + '/Run' + str(run) + '/one_step_subgoal' + str(subgoal_idx) + '.npy')
+            dict_path = self.subgoal_data_path + traj + '/Run' + str(run) + '/single_step_dist_metrics_' + str(subgoal_idx) + '.txt'
+        else:
+            subgoal = np.load(self.subgoal_data_path + traj + '/Run' + str(run) + '/autoregressive_subgoal' + str(subgoal_idx) + '.npy')
+            dict_path = self.subgoal_data_path + traj + '/Run' + str(run) + '/autoregressive_dist_metrics_' + str(subgoal_idx) + '.txt'
+        
+        # downsample the point clouds
+        if state.shape[0] > 2048:
+            state = state[np.random.choice(state.shape[0], 2048, replace=False), :]
+        if goal.shape[0] > 2048: 
+            goal = goal[np.random.choice(goal.shape[0], 2048, replace=False), :]
+        if subgoal.shape[0] > 2048:
+            subgoal = subgoal[np.random.choice(subgoal.shape[0], 2048, replace=False), :]
+        
+        # process the point clouds
+        center = np.mean(state, axis=0)
+        state = state - center
+        goal = goal - center
+        subgoal = subgoal - center
+        state = state / np.max(np.abs(state))
+        goal = goal / np.max(np.abs(goal))
+        subgoal = subgoal / np.max(np.abs(subgoal))
+
+        # convert to torch tensors
+        state = torch.from_numpy(state).float()
+        goal = torch.from_numpy(goal).float()
+        subgoal = torch.from_numpy(subgoal).float()
+        
+        # load in the distance dictionary
+        cd, emd, _ = self.load_dist_data(dict_path)
+        value = 0.5 * cd + 0.5 * emd
+        value = torch.tensor(value).unsqueeze(0).float()
+
+        return state, goal, subgoal, value

@@ -11,14 +11,15 @@ from util.misc import NativeScalerWithGradNormCount as NativeScaler
 
 dataset_dir = '/home/alison/Documents/Feb26_Human_Demos_Raw/pottery'
 save_dir = '/home/alison/Documents/GitHub/subgoal_diffusion/model_weights/'
-exp_folder = 'latent_subgoal_10_subgoal_steps'
+exp_folder = 'latent_subgoal_3_state_idx_unnormalized'
 os.makedirs(save_dir + exp_folder)
 
 # parameters
 n_epochs = 800
-n_subgoal_steps = 10
+n_subgoal_steps = 7
 lr_param = 1e-5
 batch = 4
+state_idx_conditioning = True
 
 # create and save dictionary with parameters
 params = {
@@ -26,6 +27,7 @@ params = {
     'n_subgoal_steps': n_subgoal_steps,
     'lr_param': lr_param,
     'batch': batch,
+    'state_idx_conditioning': state_idx_conditioning,
 }
 # write params to text file
 with open(save_dir + exp_folder + '/params.txt', 'w') as f:
@@ -66,10 +68,11 @@ for epoch in tqdm(range(n_epochs)):
     model.train(True)
     ae.eval()
     train_loss = 0
-    for state, next_state, goal in tqdm(train_loader):
+    for state, next_state, goal, state_idx in tqdm(train_loader):
         state = state.to(device)
         next_state = next_state.to(device)
         goal = goal.to(device)
+        state_idx = state_idx.to(device)
 
         with torch.cuda.amp.autocast(enabled=False):
             with torch.no_grad():
@@ -78,7 +81,7 @@ for epoch in tqdm(range(n_epochs)):
                 _, next_state_latent = ae.encode(next_state)
                 _, goal_latent = ae.encode(goal)
 
-            loss = criterion(model, next_state_latent, state_latent, goal_latent)
+            loss = criterion(model, next_state_latent, state_latent, goal_latent, state_idx)
 
         train_loss += loss.item()
 
@@ -93,10 +96,11 @@ for epoch in tqdm(range(n_epochs)):
         model.eval()
         ae.eval()
         test_loss = 0
-        for state, next_state, goal in tqdm(test_loader):
+        for state, next_state, goal, state_idx in tqdm(test_loader):
             state = state.to(device)
             next_state = next_state.to(device)
             goal = goal.to(device)
+            state_idx = state_idx.to(device)
 
             with torch.cuda.amp.autocast(enabled=False):
                 with torch.no_grad():
@@ -104,7 +108,7 @@ for epoch in tqdm(range(n_epochs)):
                     _, next_state_latent = ae.encode(next_state)
                     _, goal_latent = ae.encode(goal)
 
-                loss = criterion(model, next_state_latent, state_latent, goal_latent)
+                loss = criterion(model, next_state_latent, state_latent, goal_latent, state_idx)
 
             test_loss += loss.item()
         test_loss /= len(test_dataset)

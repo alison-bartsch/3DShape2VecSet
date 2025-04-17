@@ -242,7 +242,7 @@ class LatentArrayTransformer(nn.Module):
         return x
 
 def edm_sampler(
-    net, latents, state=None, goal=None, randn_like=torch.randn_like,
+    net, latents, state=None, goal=None, state_idx=None, randn_like=torch.randn_like,
     num_steps=18, sigma_min=0.002, sigma_max=80, rho=7,
     # S_churn=40, S_min=0.05, S_max=50, S_noise=1.003,
     S_churn=0, S_min=0, S_max=float('inf'), S_noise=1,
@@ -267,13 +267,13 @@ def edm_sampler(
         x_hat = x_cur + (t_hat ** 2 - t_cur ** 2).sqrt() * S_noise * randn_like(x_cur)
 
         # Euler step.
-        denoised = net(x_hat, t_hat, state, goal).to(torch.float64)
+        denoised = net(x_hat, t_hat, state, goal, state_idx).to(torch.float64)
         d_cur = (x_hat - denoised) / t_hat
         x_next = x_hat + (t_next - t_hat) * d_cur
 
         # Apply 2nd order correction.
         if i < num_steps - 1:
-            denoised = net(x_next, t_next, state, goal).to(torch.float64)
+            denoised = net(x_next, t_next, state, goal, state_idx).to(torch.float64)
             d_prime = (x_next - denoised) / t_next
             x_next = x_hat + (t_next - t_hat) * (0.5 * d_cur + 0.5 * d_prime)
 
@@ -439,7 +439,7 @@ class EDMLoss:
         self.P_std = P_std
         self.sigma_data = sigma_data
 
-    def __call__(self, net, inputs, state_latent=None, goal_latent=None, augment_pipe=None):
+    def __call__(self, net, inputs, state_latent=None, goal_latent=None, state_idx=None, augment_pipe=None):
         rnd_normal = torch.randn([inputs.shape[0], 1, 1], device=inputs.device)
         # rnd_normal = torch.randn([1, 1, 1], device=inputs.device).repeat(inputs.shape[0], 1, 1)
 
@@ -449,7 +449,7 @@ class EDMLoss:
 
         n = torch.randn_like(y) * sigma
 
-        D_yn = net(y + n, sigma, state_latent, goal_latent)
+        D_yn = net(y + n, sigma, state_latent, goal_latent, state_idx)
         loss = weight * ((D_yn - y) ** 2)
         return loss.mean()
 
@@ -469,22 +469,6 @@ class StackedRandomGenerator:
         assert size[0] == len(self.generators)
         return torch.stack([torch.randint(*args, size=size[1:], generator=gen, **kwargs) for gen in self.generators])
 
-class PclConditionalEmbedding(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.linear1 = nn.Linear(512, 512)
-        self.linear2 = nn.Linear(512, 512)
-
-    def forward(self, state_latent, goal_latent):
-        state_latent = self.linear1(state_latent)
-        goal_latent = self.linear2(goal_latent)
-
-        # print("\nState latent shape: ", state_latent.shape)
-        # print("Goal latent shape: ", goal_latent.shape)
-
-        interaction = torch.matmul(state_latent, goal_latent.transpose(1, 2))
-        # print("Interaction shape: ", interaction.shape)
-        return interaction
         
 
 class EDMPrecond(torch.nn.Module):
@@ -513,13 +497,13 @@ class EDMPrecond(torch.nn.Module):
         self.category_emb = nn.Embedding(55, n_heads * d_head)
         # print("\nNheads * Dheads: ", n_heads * d_head)
 
-        
-        self.pcl_conditional_emb = PclConditionalEmbedding()
+        self.state_idx_emb = nn.Linear(1,512)
+
 
     def emb_category(self, class_labels):
         return self.category_emb(class_labels).unsqueeze(1)
 
-    def forward(self, x, sigma, state=None, goal=None, force_fp32=False, **model_kwargs):
+    def forward(self, x, sigma, state=None, goal=None, state_idx=None, force_fp32=False, **model_kwargs):
                 
         # if class_labels.dtype == torch.float32:
         #     cond_emb = class_labels
@@ -535,9 +519,11 @@ class EDMPrecond(torch.nn.Module):
         # print("\nCond Emb shape: ", cond_emb.shape)
 
         cond_emb = torch.matmul(state, goal.transpose(1, 2))
-
-        # NOTE: need to take the state embedding and goal embedding, crossattn with multiple heads, further projection into lower dim
-        # state embedding and goal embedding are each shape [batch_size, 512, 8]
+        idx_latent = self.state_idx_emb(state_idx)
+        idx_latent = idx_latent.unsqueeze(2)
+        idx_latent = idx_latent.repeat(1, 1, 512)
+        # combine cond_emb and idx_latent but preserve (batch_size, 512, 512) shape
+        cond_emb = cond_emb + idx_latent
 
         x = x.to(torch.float32)
         sigma = sigma.to(torch.float32).reshape(-1, 1, 1)
@@ -557,7 +543,7 @@ class EDMPrecond(torch.nn.Module):
         return torch.as_tensor(sigma)
     
     @torch.no_grad()
-    def sample(self, state_cond, goal_cond, batch_seeds=None):
+    def sample(self, state_cond, goal_cond, state_idx, batch_seeds=None):
         # print(batch_seeds)
         if state_cond is not None:
             # batch_size, device = *state_cond.shape, state_cond.device
@@ -574,7 +560,7 @@ class EDMPrecond(torch.nn.Module):
         rnd = StackedRandomGenerator(device, batch_seeds)
         latents = rnd.randn([batch_size, self.n_latents, self.channels], device=device)
 
-        return edm_sampler(self, latents, state_cond, goal_cond, randn_like=rnd.randn_like)
+        return edm_sampler(self, latents, state_cond, goal_cond, state_idx, randn_like=rnd.randn_like)
 
 
 def kl_d512_m512_l8_edm():

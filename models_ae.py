@@ -378,7 +378,7 @@ class KLAutoEncoder(nn.Module):
     def decode(self, x, queries):
 
         x = self.proj(x)
-        print("Projected x shape: ", x.shape)
+        # print("Projected x shape: ", x.shape)
 
         for self_attn, self_ff in self.layers:
             x = self_attn(x) + x

@@ -1,3 +1,4 @@
+import cv2
 import time
 import numpy as np
 import open3d as o3d
@@ -117,6 +118,21 @@ def vis_fov_point_cloud(pcl):
     vis.run()
     vis.destroy_window()
 
+def make_video(img_sequence, filename='point_cloud_animation.mp4', fps=5):
+    '''
+    This function takes a list of images and creates a video from them.
+    '''
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    height, width, _ = np.array(img_sequence[0]).shape
+    out = cv2.VideoWriter(filename, fourcc, fps, (width, height))
+
+    for img in img_sequence:
+        img = np.array(img)
+        img = (img * 255).astype(np.uint8)
+        out.write(img)
+
+    out.release()
+
 def make_gif(img_sequence, filename='point_cloud_animation.gif', duration=100):
     '''
     This function takes a list of images and creates a gif from them.
@@ -125,6 +141,9 @@ def make_gif(img_sequence, filename='point_cloud_animation.gif', duration=100):
     for img in img_sequence:
         img = np.array(img)
         img = (img * 255).astype(np.uint8)
+        # flip the colors from RGB to BGR
+        img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+        # convert to PIL image
         images.append(Image.fromarray(img))
     images[0].save(filename, save_all=True, append_images=images[1:], optimize=False, duration=duration, loop=0)
 
