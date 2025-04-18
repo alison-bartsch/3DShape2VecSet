@@ -20,7 +20,7 @@ from dist_utils import *
 dataset_dir = '/home/alison/Documents/Feb26_Human_Demos_Raw/pottery'
 save_dir = '/home/alison/Documents/GitHub/subgoal_diffusion/model_weights/'
 # exp_folder = 'latent_subgoal_3_subgoal_steps'
-exp_folder = 'latent_subgoal_more_epochs'
+exp_folder = 'latent_subgoal_3_state_idx_unnormalized'
 value_model_folder = 'subgoal_value_model'
 
 
@@ -30,7 +30,7 @@ if not os.path.exists(vis_path + exp_folder):
 
 
 # define the step size for g.t. visualization
-n_subgoal_steps = 5 # 3
+n_subgoal_steps = 3 # 3
 
 # load in the pretrained embedding model
 ae_pth = '/home/alison/Downloads/checkpoint-199.pth'
@@ -105,8 +105,8 @@ for elem in tqdm(traj_list):
         goal_pcl = o3d.geometry.PointCloud()
         goal_pcl.points = o3d.utility.Vector3dVector(goal.cpu().numpy()[0])
         goal_pcl.colors = o3d.utility.Vector3dVector(generate_colormap(goal.cpu().numpy()[0], pltmap='autumn'))
-        o3d.visualization.draw_geometries([state_pcl])
-        o3d.visualization.draw_geometries([goal_pcl])
+        # o3d.visualization.draw_geometries([state_pcl])
+        # o3d.visualization.draw_geometries([goal_pcl])
 
         # load in the g.t. subgoal
         gt_subgoal = np.load(traj_path + '/unnormalized_pointcloud' + str(i + n_subgoal_steps) + '.npy')
@@ -120,14 +120,25 @@ for elem in tqdm(traj_list):
         xv, yv, zv = np.meshgrid(x, y, z)
         grid = torch.from_numpy(np.stack([xv, yv, zv]).astype(np.float32)).view(3, -1).transpose(0, 1)[None].to(device, non_blocking=True)
 
-        # predict the subgoal given the real-world previous state
-        _, state_latent = ae.encode(state)
-        _, goal_latent = ae.encode(goal)
+        # # predict the subgoal given the real-world previous state
+        # _, state_latent = ae.encode(state)
+        # _, goal_latent = ae.encode(goal)
+
+        # TODO:
+            # [ ] visualize the generated subgoal population --> what are the differences?
+            # [ ] create a much larger population of generated subgoals for analysis
+            # [ ] compute CD and EMD for each generated subgoal 
+
+        # NOTE: the subgoal unnormalization has a sizing issue, and autoregressively keeps getting smaller? 
 
         # iterate to generate population of candidate subgoals
         subgoal_candidates = {} # dictionary to hold the subgoal candidates with their corresponding values
         for j in range(16):
-            sampled_array = model.sample(state_cond=state_latent, goal_cond=goal_latent, state_idx=torch.tensor(i).unsqueeze(0).unsqueeze(0).float()).float()
+            # predict the subgoal given the real-world previous state
+            _, state_latent = ae.encode(state)
+            _, goal_latent = ae.encode(goal)
+
+            sampled_array = model.sample(state_cond=state_latent, goal_cond=goal_latent, state_idx=torch.tensor(i).unsqueeze(0).unsqueeze(0).float().to(device)).float()
             
             logits = ae.decode(sampled_array[0:1], grid)
             logits = logits.detach()
@@ -147,22 +158,38 @@ for elem in tqdm(traj_list):
             value = value_model(state_latent, goal_latent, latent_verts)
             value = value.detach().cpu().numpy()
             print("subgoal candidate value: ", value)
+
+            # calculate emd between unnormalized verts and g.t. subgoal
+            unnorm_verts = verts * np.max(np.abs(og_state)) + center
+            emd_dist = emd(unnorm_verts, gt_subgoal)
+            print("emd distance: ", emd_dist)
+
             # add j, value and verts (not downsampled) to subgoal_candidates
-            subgoal_candidates[j] = {'value': value, 'verts': verts}
+            subgoal_candidates[j] = {'value': value, 'emd':emd_dist, 'verts': verts}
 
         # select the best subgoal candidate (i.e. the one with the smallest value)
-        best_subgoal_idx = min(subgoal_candidates, key=lambda x: subgoal_candidates[x]['value'])
+        best_subgoal_idx = min(subgoal_candidates, key=lambda x: subgoal_candidates[x]['emd'])
+        # best_subgoal_idx = min(subgoal_candidates, key=lambda x: subgoal_candidates[x]['value'])
         print("best subgoal candidate: ", best_subgoal_idx)
-        print("best subgoal value: ", subgoal_candidates[best_subgoal_idx]['value'])
+        # print("best subgoal value: ", subgoal_candidates[best_subgoal_idx]['value'])
+        print("best subgoal emd: ", subgoal_candidates[best_subgoal_idx]['emd'])
         best_subgoal = subgoal_candidates[best_subgoal_idx]['verts']
         # unnormalize the best subgoal candidate
         best_subgoal = best_subgoal * np.max(np.abs(og_state)) + center
+
+        # check if all verts in subgoal_candidates dictionary are the same
+        for k in range(16):
+            if not np.array_equal(subgoal_candidates[best_subgoal_idx]['verts'], subgoal_candidates[k]['verts']):
+                print("subgoal candidates are not the same!")
+                break
+            else:
+                print("subgoal candidates are the same!")
 
         # ground truth next state in green
         gt_subgoal_pcl = o3d.geometry.PointCloud()
         gt_subgoal_pcl.points = o3d.utility.Vector3dVector(gt_subgoal)
         gt_subgoal_pcl.colors = o3d.utility.Vector3dVector(generate_colormap(gt_subgoal, pltmap='summer'))
-        o3d.visualization.draw_geometries([gt_subgoal_pcl])
+        # o3d.visualization.draw_geometries([gt_subgoal_pcl])
 
         # gt_subgoal_list = animate_point_cloud(gt_subgoal, view='isometric', pltmap='summer')
         # print("saving gif...")
@@ -174,7 +201,7 @@ for elem in tqdm(traj_list):
         one_step_pcl = o3d.geometry.PointCloud()
         one_step_pcl.points = o3d.utility.Vector3dVector(best_subgoal)
         one_step_pcl.colors = o3d.utility.Vector3dVector(generate_colormap(best_subgoal, pltmap='autumn'))
-        o3d.visualization.draw_geometries([one_step_pcl])
+        o3d.visualization.draw_geometries([gt_subgoal_pcl, one_step_pcl])
 
         # autoregressive_subgoal_list = animate_point_cloud(best_subgoal, view='isometric', pltmap='autumn')
         # print("saving gif...")

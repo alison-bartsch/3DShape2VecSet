@@ -182,11 +182,7 @@ class SubGoalDataset:
         goal = torch.from_numpy(goal).float()
         # state_idx = torch.tensor(state_idx).unsqueeze(0).float()
 
-        # normalize state idx to be between 0 and 1 (0 means start of trajectory, 1 means end of trajectory or goal_idx)
-        # norm_state_idx = state_idx / goal_idx
-        # norm_state_idx = torch.tensor(norm_state_idx).unsqueeze(0).float()
-        # NOTE: not normalizing state idx because at autoregressive rollout, we don't necessarily know how many steps away the goal is!
-
+        # NOTE: we need to standardize the min/max point cloud sizes for reconstruction consistency
 
         state_idx = torch.tensor(state_idx).unsqueeze(0).float()
         
