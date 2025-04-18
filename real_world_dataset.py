@@ -142,6 +142,14 @@ class SubGoalDataset:
         state = R @ state.T
         pcl_aug = state.T + center
         return pcl_aug
+    
+    def _normalize_pcl(self, pcl):
+        min_pos = np.array([-0.75, -0.75, -0.75])
+        max_pos = np.array([0.75, 0.75, 0.75])
+        # Normalize the point cloud to be between -1 and 1
+        pcl = (pcl - min_pos) / (max_pos - min_pos)
+        pcl = 2 * pcl - 1
+        return pcl
 
     def __len__(self):
         return self.n_datapoints
@@ -171,10 +179,13 @@ class SubGoalDataset:
         next_state -= center
         goal -= center
 
-        # normalize the state point clouds to be between -1 and 1
-        state = state / np.max(np.abs(state))
-        next_state = next_state / np.max(np.abs(next_state))
-        goal = goal / np.max(np.abs(goal))
+        # # normalize the state point clouds to be between -1 and 1
+        # state = state / np.max(np.abs(state))
+        # next_state = next_state / np.max(np.abs(next_state))
+        # goal = goal / np.max(np.abs(goal))
+        state = self._normalize_pcl(state)
+        next_state = self._normalize_pcl(next_state)
+        goal = self._normalize_pcl(goal)
 
         # convert to torch tensors of correct shape/format
         state = torch.from_numpy(state).float()

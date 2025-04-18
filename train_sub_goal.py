@@ -11,12 +11,12 @@ from util.misc import NativeScalerWithGradNormCount as NativeScaler
 
 dataset_dir = '/home/alison/Documents/Feb26_Human_Demos_Raw/pottery'
 save_dir = '/home/alison/Documents/GitHub/subgoal_diffusion/model_weights/'
-exp_folder = 'latent_subgoal_3_state_idx_unnormalized'
+exp_folder = 'latent_subgoal_3_state_idx_global_pcl_normalization'
 os.makedirs(save_dir + exp_folder)
 
 # parameters
 n_epochs = 800
-n_subgoal_steps = 7
+n_subgoal_steps = 3
 lr_param = 1e-5
 batch = 4
 state_idx_conditioning = True
