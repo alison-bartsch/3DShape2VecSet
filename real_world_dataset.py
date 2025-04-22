@@ -144,8 +144,10 @@ class SubGoalDataset:
         return pcl_aug
     
     def _normalize_pcl(self, pcl):
-        min_pos = np.array([-0.75, -0.75, -0.75])
-        max_pos = np.array([0.75, 0.75, 0.75])
+        # min_pos = np.array([-0.75, -0.75, -0.75])
+        # max_pos = np.array([0.75, 0.75, 0.75])
+        min_pos = np.array([-0.058, -0.053, -0.043])
+        max_pos = np.array([0.062, 0.062, 0.031])
         # Normalize the point cloud to be between -1 and 1
         pcl = (pcl - min_pos) / (max_pos - min_pos)
         pcl = 2 * pcl - 1
@@ -335,6 +337,21 @@ class SubGoalQualityDataset:
         emd = data['EMD']
         hd = data['HAUSDORFF']
         return cd, emd, hd
+    
+    def generate_value(self, cd, emd):
+        '''
+        Generate a value between 0 and 1 from the cd and emd values.
+        '''
+        combined = 0.5 * cd + 0.5 * emd
+        min_val = 0.002
+        max_val = 0.05
+        if combined <= min_val:
+            value = 1
+        elif combined >= max_val:
+            value = 0
+        else:
+            value = 1 - (combined - min_val) / (max_val - min_val)
+        return value
 
     def __len__(self):
         data_list1 = self.n_runs * [len(np.arange(0, value - (value % self.sub_goal_step) - 2 - self.sub_goal_step, self.sub_goal_step)) for value in self.data_dict.values()]
@@ -383,7 +400,7 @@ class SubGoalQualityDataset:
         
         # load in the distance dictionary
         cd, emd, _ = self.load_dist_data(dict_path)
-        value = 0.5 * cd + 0.5 * emd
+        value = self.generate_value(cd, emd)
         value = torch.tensor(value).unsqueeze(0).float()
 
         return state, goal, subgoal, value

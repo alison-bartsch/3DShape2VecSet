@@ -10,7 +10,7 @@ from real_world_dataset import SubGoalQualityDataset
 from action_pred_model import SubGoalValueModel
 
 save_dir = '/home/alison/Documents/GitHub/subgoal_diffusion/model_weights/'
-exp_folder = 'subgoal_value_model'
+exp_folder = 'subgoal_new_value_model'
 os.makedirs(save_dir + exp_folder)
 
 # parameters

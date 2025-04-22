@@ -17,10 +17,28 @@ from util.misc import NativeScalerWithGradNormCount as NativeScaler
 from pcl_animation_gif_generator import generate_colormap, animate_point_cloud, make_gif, make_video
 from dist_utils import *
 
+def normalize_pcl(pcl):
+    min_pos = np.array([-0.058, -0.053, -0.043])
+    max_pos = np.array([0.062, 0.062, 0.031])
+    # Normalize the point cloud to be between -1 and 1
+    pcl = (pcl - min_pos) / (max_pos - min_pos)
+    pcl = 2 * pcl - 1
+    return pcl
+
+def unnormalize_pcl(pcl):
+    min_pos = np.array([-0.058, -0.053, -0.043])
+    max_pos = np.array([0.062, 0.062, 0.031])
+    # Unnormalize the point cloud from between -1 and 1 to the original range
+    pcl = (pcl + 1) / 2
+    pcl = pcl * (max_pos - min_pos) + min_pos
+    return pcl
+
 dataset_dir = '/home/alison/Documents/Feb26_Human_Demos_Raw/pottery'
 save_dir = '/home/alison/Documents/GitHub/subgoal_diffusion/model_weights/'
-# exp_folder = 'latent_subgoal_3_subgoal_steps'
-exp_folder = 'latent_subgoal_3_state_idx_unnormalized'
+# exp_folder = 'latent_subgoal_3_subgoal_steps' # this worked well
+exp_folder = 'latent_subgoal_3_state_idx_unnormalized' # this worked well, just had sizing issues with the unnormalized point cloud
+# exp_folder = 'latent_subgoal_3_state_idx_global_pcl_normalization_intermediate_checkpoints'
+# exp_folder = 'latent_subgoal_3_state_idx_global_pcl_normalization'
 value_model_folder = 'subgoal_value_model'
 
 
@@ -41,7 +59,7 @@ ae.load_state_dict(torch.load(ae_pth, map_location='cpu')['model'])
 ae.to(device)
 
 # load in the pretrained subgoal model
-model_pth = save_dir + exp_folder + '/best_diffusion_model.pt'
+model_pth = save_dir + exp_folder + '/best_diffusion_model.pt' # '/diffusion_model8.pt' 
 model = models_class_cond.__dict__['kl_d512_m512_l8_edm']()
 model.eval()
 model.load_state_dict(torch.load(model_pth, map_location='cpu')) 
@@ -87,6 +105,7 @@ for elem in tqdm(traj_list):
         state -= center
         og_state -= center
         state = state / np.max(np.abs(state))
+        # state = normalize_pcl(state)
         state = torch.from_numpy(state).float()
         state = state.unsqueeze(0)
         state = state.to(device)
@@ -94,6 +113,7 @@ for elem in tqdm(traj_list):
         # process the goal point cloud w.r.t. the state center
         goal = og_goal - center
         goal = goal / np.max(np.abs(goal))
+        # goal = normalize_pcl(goal)
         goal = torch.from_numpy(goal).float()
         goal = goal.unsqueeze(0)
         goal = goal.to(device)
@@ -138,6 +158,7 @@ for elem in tqdm(traj_list):
             _, state_latent = ae.encode(state)
             _, goal_latent = ae.encode(goal)
 
+            print("State index: ", torch.tensor(i).unsqueeze(0).unsqueeze(0).float())
             sampled_array = model.sample(state_cond=state_latent, goal_cond=goal_latent, state_idx=torch.tensor(i).unsqueeze(0).unsqueeze(0).float().to(device)).float()
             
             logits = ae.decode(sampled_array[0:1], grid)
@@ -148,7 +169,11 @@ for elem in tqdm(traj_list):
             verts -= 1
 
             # downsample verts
-            downsampled_verts = verts[np.random.choice(verts.shape[0], 2048, replace=False), :]
+            print("verts shape: ", verts.shape)
+            if verts.shape[0] > 2048:
+                downsampled_verts = verts[np.random.choice(verts.shape[0], 2048, replace=False), :]
+            else:
+                downsampled_verts = verts[np.random.choice(verts.shape[0], 2048, replace=True), :]
             # convert verts to correct torch format
             downsampled_verts = torch.from_numpy(downsampled_verts).unsqueeze(0).float()
             downsampled_verts = downsampled_verts.to(device)
@@ -161,6 +186,7 @@ for elem in tqdm(traj_list):
 
             # calculate emd between unnormalized verts and g.t. subgoal
             unnorm_verts = verts * np.max(np.abs(og_state)) + center
+            # unnorm_verts = unnormalize_pcl(verts) + center
             emd_dist = emd(unnorm_verts, gt_subgoal)
             print("emd distance: ", emd_dist)
 
@@ -176,6 +202,7 @@ for elem in tqdm(traj_list):
         best_subgoal = subgoal_candidates[best_subgoal_idx]['verts']
         # unnormalize the best subgoal candidate
         best_subgoal = best_subgoal * np.max(np.abs(og_state)) + center
+        # best_subgoal = unnormalize_pcl(best_subgoal) + center
 
         # check if all verts in subgoal_candidates dictionary are the same
         for k in range(16):

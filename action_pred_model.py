@@ -56,5 +56,5 @@ class SubGoalValueModel(torch.nn.Module):
         x = torch.nn.functional.relu(self.fc1(x))
         x = torch.nn.functional.relu(self.fc2(x))
         x = torch.nn.functional.relu(self.fc3(x))
-        x = self.fc4(x)
+        x = torch.sigmoid(self.fc4(x)) # constrain output to be between 0 and 1
         return x
