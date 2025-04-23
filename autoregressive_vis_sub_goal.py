@@ -36,10 +36,11 @@ def unnormalize_pcl(pcl):
 dataset_dir = '/home/alison/Documents/Feb26_Human_Demos_Raw/pottery'
 save_dir = '/home/alison/Documents/GitHub/subgoal_diffusion/model_weights/'
 # exp_folder = 'latent_subgoal_3_subgoal_steps' # this worked well
-exp_folder = 'latent_subgoal_3_state_idx_unnormalized' # this worked well, just had sizing issues with the unnormalized point cloud
+# exp_folder = 'latent_subgoal_3_state_idx_unnormalized' # this worked well, just had sizing issues with the unnormalized point cloud
 # exp_folder = 'latent_subgoal_3_state_idx_global_pcl_normalization_intermediate_checkpoints'
 # exp_folder = 'latent_subgoal_3_state_idx_global_pcl_normalization'
-value_model_folder = 'subgoal_value_model'
+exp_folder = 'latent_subgoal_7_state_idx_global_pcl_normalization_fixed'
+value_model_folder = 'subgoal_new_value_model'
 
 
 vis_path = '/home/alison/Documents/GitHub/subgoal_diffusion/subgoal_evals/autoregressive_vis/'
@@ -48,7 +49,7 @@ if not os.path.exists(vis_path + exp_folder):
 
 
 # define the step size for g.t. visualization
-n_subgoal_steps = 3 # 3
+n_subgoal_steps = 7 # 3
 
 # load in the pretrained embedding model
 ae_pth = '/home/alison/Downloads/checkpoint-199.pth'
@@ -59,7 +60,7 @@ ae.load_state_dict(torch.load(ae_pth, map_location='cpu')['model'])
 ae.to(device)
 
 # load in the pretrained subgoal model
-model_pth = save_dir + exp_folder + '/best_diffusion_model.pt' # '/diffusion_model8.pt' 
+model_pth = save_dir + exp_folder + '/best_test_loss_diffusion_model.pt' # '/diffusion_model8.pt' 
 model = models_class_cond.__dict__['kl_d512_m512_l8_edm']()
 model.eval()
 model.load_state_dict(torch.load(model_pth, map_location='cpu')) 
@@ -79,6 +80,8 @@ traj_list = [('/Trajectory0', 33),
             ('/Trajectory3', 26), 
             ('/Trajectory4', 17), 
             ('/Trajectory5', 23)]
+# traj_list = [('/Trajectory4', 17), 
+#             ('/Trajectory5', 23)]
 
 for elem in tqdm(traj_list):
     traj = elem[0]
@@ -99,21 +102,22 @@ for elem in tqdm(traj_list):
             og_state = np.load(state_path)
             state = np.load(state_path)
         else:
-            state = best_subgoal[np.random.choice(verts.shape[0], 2048, replace=False), :]
-            og_state = best_subgoal[np.random.choice(verts.shape[0], 2048, replace=False), :] # TODO: set to best predicted state from previous step
-        center = np.mean(state, axis=0)
+            state = best_subgoal[np.random.choice(best_subgoal.shape[0], 2048, replace=False), :]
+            og_state = best_subgoal[np.random.choice(best_subgoal.shape[0], 2048, replace=False), :] # TODO: set to best predicted state from previous step
+        # center = np.mean(state, axis=0)
+        center = np.array([0.628, 0.000, 0.104])
         state -= center
         og_state -= center
-        state = state / np.max(np.abs(state))
-        # state = normalize_pcl(state)
+        # state = state / np.max(np.abs(state))
+        state = normalize_pcl(state)
         state = torch.from_numpy(state).float()
         state = state.unsqueeze(0)
         state = state.to(device)
 
         # process the goal point cloud w.r.t. the state center
         goal = og_goal - center
-        goal = goal / np.max(np.abs(goal))
-        # goal = normalize_pcl(goal)
+        # goal = goal / np.max(np.abs(goal))
+        goal = normalize_pcl(goal)
         goal = torch.from_numpy(goal).float()
         goal = goal.unsqueeze(0)
         goal = goal.to(device)
@@ -153,7 +157,8 @@ for elem in tqdm(traj_list):
 
         # iterate to generate population of candidate subgoals
         subgoal_candidates = {} # dictionary to hold the subgoal candidates with their corresponding values
-        for j in range(16):
+        # for j in range(16):
+        for j in range(2):
             # predict the subgoal given the real-world previous state
             _, state_latent = ae.encode(state)
             _, goal_latent = ae.encode(goal)
@@ -185,8 +190,8 @@ for elem in tqdm(traj_list):
             print("subgoal candidate value: ", value)
 
             # calculate emd between unnormalized verts and g.t. subgoal
-            unnorm_verts = verts * np.max(np.abs(og_state)) + center
-            # unnorm_verts = unnormalize_pcl(verts) + center
+            # unnorm_verts = verts * np.max(np.abs(og_state)) + center
+            unnorm_verts = unnormalize_pcl(verts) + center
             emd_dist = emd(unnorm_verts, gt_subgoal)
             print("emd distance: ", emd_dist)
 
@@ -201,8 +206,8 @@ for elem in tqdm(traj_list):
         print("best subgoal emd: ", subgoal_candidates[best_subgoal_idx]['emd'])
         best_subgoal = subgoal_candidates[best_subgoal_idx]['verts']
         # unnormalize the best subgoal candidate
-        best_subgoal = best_subgoal * np.max(np.abs(og_state)) + center
-        # best_subgoal = unnormalize_pcl(best_subgoal) + center
+        # best_subgoal = best_subgoal * np.max(np.abs(og_state)) + center
+        best_subgoal = unnormalize_pcl(best_subgoal) + center
 
         # check if all verts in subgoal_candidates dictionary are the same
         for k in range(16):

@@ -259,7 +259,8 @@ class ReconDataset:
         n_actions = np.abs(state1_idx - state2_idx)
 
         # get center of state1
-        center = np.mean(state1, axis=0)
+        # center = np.mean(state1, axis=0)
+        center = np.array([0.628, 0.000, 0.104])
 
         # rotate the states
         state1 = self._rotate_pcl(state1, center, aug_rot)
@@ -385,7 +386,8 @@ class SubGoalQualityDataset:
             subgoal = subgoal[np.random.choice(subgoal.shape[0], 2048, replace=False), :]
         
         # process the point clouds
-        center = np.mean(state, axis=0)
+        # center = np.mean(state, axis=0)
+        center = np.array([0.628, 0.000, 0.104])
         state = state - center
         goal = goal - center
         subgoal = subgoal - center

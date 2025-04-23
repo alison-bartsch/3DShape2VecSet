@@ -1,0 +1,5 @@
+n_epochs: 500
+n_subgoal_steps: 3
+lr_param: 0.0001
+batch: 4
+model_name: latent_subgoal_3_subgoal_steps

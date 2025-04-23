@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import models_ae
 import models_class_cond
 from real_world_dataset import SubGoalQualityDataset
-from action_pred_model import SubGoalValueModel
+from action_pred_model import SubGoalValueModel, SubGoalValueModelCrossAttn
 
 save_dir = '/home/alison/Documents/GitHub/subgoal_diffusion/model_weights/'
 exp_folder = 'subgoal_new_value_model'
@@ -47,7 +47,7 @@ ae.eval()
 ae.load_state_dict(torch.load(ae_pth, map_location='cpu')['model'])
 ae.to(device)
 
-model = SubGoalValueModel()
+model = SubGoalValueModel() # SubGoalValueModelCrossAttn()
 model.to(device)
 
 optimizer = torch.optim.AdamW(model.parameters(), lr=lr_param)
