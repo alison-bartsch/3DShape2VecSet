@@ -35,11 +35,7 @@ def unnormalize_pcl(pcl):
 
 dataset_dir = '/home/alison/Documents/Feb26_Human_Demos_Raw/pottery'
 save_dir = '/home/alison/Documents/GitHub/subgoal_diffusion/model_weights/'
-# exp_folder = 'latent_subgoal_3_subgoal_steps' # this worked well
-# exp_folder = 'latent_subgoal_3_state_idx_unnormalized' # this worked well, just had sizing issues with the unnormalized point cloud
-# exp_folder = 'latent_subgoal_3_state_idx_global_pcl_normalization_intermediate_checkpoints'
-# exp_folder = 'latent_subgoal_3_state_idx_global_pcl_normalization'
-exp_folder = 'latent_subgoal_7_state_idx_global_pcl_normalization_fixed'
+exp_folder = 'latent_subgoal_3_state_idx_global_pcl_normalization_fixed'
 value_model_folder = 'subgoal_new_value_model'
 
 
@@ -49,7 +45,7 @@ if not os.path.exists(vis_path + exp_folder):
 
 
 # define the step size for g.t. visualization
-n_subgoal_steps = 7 # 3
+n_subgoal_steps = 3 # 3
 
 # load in the pretrained embedding model
 ae_pth = '/home/alison/Downloads/checkpoint-199.pth'
@@ -74,14 +70,12 @@ value_model.load_state_dict(torch.load(value_model_pth, map_location='cpu'))
 value_model.to(device)
 
 # load in the g.t. goal
-traj_list = [('/Trajectory0', 33), 
-            ('/Trajectory1', 27), 
+traj_list = [('/Trajectory0', 32), 
+            ('/Trajectory1', 26), 
             ('/Trajectory2', 26), 
             ('/Trajectory3', 26), 
             ('/Trajectory4', 17), 
             ('/Trajectory5', 23)]
-# traj_list = [('/Trajectory4', 17), 
-#             ('/Trajectory5', 23)]
 
 for elem in tqdm(traj_list):
     traj = elem[0]
@@ -94,7 +88,7 @@ for elem in tqdm(traj_list):
         os.makedirs(vis_path + exp_folder + traj)
 
     # iterate through a g.t. trajectory with n_subgoal_steps size
-    for i in range(0, goal_idx - n_subgoal_steps, n_subgoal_steps):
+    for i in range(0, goal_idx, n_subgoal_steps):
         full_save_path = vis_path + exp_folder + traj + '/'
         # load in the state
         if i == 0:
@@ -108,7 +102,6 @@ for elem in tqdm(traj_list):
         center = np.array([0.628, 0.000, 0.104])
         state -= center
         og_state -= center
-        # state = state / np.max(np.abs(state))
         state = normalize_pcl(state)
         state = torch.from_numpy(state).float()
         state = state.unsqueeze(0)
@@ -116,7 +109,6 @@ for elem in tqdm(traj_list):
 
         # process the goal point cloud w.r.t. the state center
         goal = og_goal - center
-        # goal = goal / np.max(np.abs(goal))
         goal = normalize_pcl(goal)
         goal = torch.from_numpy(goal).float()
         goal = goal.unsqueeze(0)
@@ -143,17 +135,6 @@ for elem in tqdm(traj_list):
         z = np.linspace(-1, 1, density+1)
         xv, yv, zv = np.meshgrid(x, y, z)
         grid = torch.from_numpy(np.stack([xv, yv, zv]).astype(np.float32)).view(3, -1).transpose(0, 1)[None].to(device, non_blocking=True)
-
-        # # predict the subgoal given the real-world previous state
-        # _, state_latent = ae.encode(state)
-        # _, goal_latent = ae.encode(goal)
-
-        # TODO:
-            # [ ] visualize the generated subgoal population --> what are the differences?
-            # [ ] create a much larger population of generated subgoals for analysis
-            # [ ] compute CD and EMD for each generated subgoal 
-
-        # NOTE: the subgoal unnormalization has a sizing issue, and autoregressively keeps getting smaller? 
 
         # iterate to generate population of candidate subgoals
         subgoal_candidates = {} # dictionary to hold the subgoal candidates with their corresponding values
@@ -190,7 +171,6 @@ for elem in tqdm(traj_list):
             print("subgoal candidate value: ", value)
 
             # calculate emd between unnormalized verts and g.t. subgoal
-            # unnorm_verts = verts * np.max(np.abs(og_state)) + center
             unnorm_verts = unnormalize_pcl(verts) + center
             emd_dist = emd(unnorm_verts, gt_subgoal)
             print("emd distance: ", emd_dist)
@@ -233,7 +213,7 @@ for elem in tqdm(traj_list):
         one_step_pcl = o3d.geometry.PointCloud()
         one_step_pcl.points = o3d.utility.Vector3dVector(best_subgoal)
         one_step_pcl.colors = o3d.utility.Vector3dVector(generate_colormap(best_subgoal, pltmap='autumn'))
-        o3d.visualization.draw_geometries([gt_subgoal_pcl, one_step_pcl])
+        # o3d.visualization.draw_geometries([gt_subgoal_pcl, one_step_pcl])
 
         # autoregressive_subgoal_list = animate_point_cloud(best_subgoal, view='isometric', pltmap='autumn')
         # print("saving gif...")
@@ -248,3 +228,7 @@ for elem in tqdm(traj_list):
         print("\nSingle-step distance metrics: ", dist_metrics)
         with open(full_save_path + 'single_step_dist_metrics_' + str(i) + '.txt', 'w') as f:
             f.write(str(dist_metrics))
+
+        # save the point clouds
+        np.save(full_save_path + 'gt_subgoal' + str(i) + '.npy', gt_subgoal)
+        np.save(full_save_path + 'autoregressive_subgoal' + str(i) + '.npy', best_subgoal)
