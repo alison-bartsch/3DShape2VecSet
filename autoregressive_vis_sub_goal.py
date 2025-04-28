@@ -33,7 +33,8 @@ def unnormalize_pcl(pcl):
     pcl = pcl * (max_pos - min_pos) + min_pos
     return pcl
 
-dataset_dir = '/home/alison/Documents/Feb26_Human_Demos_Raw/pottery'
+# dataset_dir = '/home/alison/Documents/Feb26_Human_Demos_Raw/pottery'
+dataset_dir = '/home/alison/Documents/Apr17_Human_Demos_Difficult_Shapes/pottery'
 save_dir = '/home/alison/Documents/GitHub/subgoal_diffusion/model_weights/'
 exp_folder = 'latent_subgoal_3_state_idx_global_pcl_normalization_fixed'
 value_model_folder = 'subgoal_new_value_model'
@@ -70,12 +71,14 @@ value_model.load_state_dict(torch.load(value_model_pth, map_location='cpu'))
 value_model.to(device)
 
 # load in the g.t. goal
-traj_list = [('/Trajectory0', 32), 
-            ('/Trajectory1', 26), 
-            ('/Trajectory2', 26), 
-            ('/Trajectory3', 26), 
-            ('/Trajectory4', 17), 
-            ('/Trajectory5', 23)]
+# traj_list = [('/Trajectory0', 32), 
+#             ('/Trajectory1', 26), 
+#             ('/Trajectory2', 26), 
+#             ('/Trajectory3', 26), 
+#             ('/Trajectory4', 17), 
+#             ('/Trajectory5', 23)]
+
+traj_list = [('/Trajectory0', 36)]
 
 for elem in tqdm(traj_list):
     traj = elem[0]
@@ -84,12 +87,12 @@ for elem in tqdm(traj_list):
     goal_idx = n_states - (n_states % n_subgoal_steps) - 1
     og_goal = np.load(traj_path + '/unnormalized_pointcloud' + str(goal_idx) + '.npy')
 
-    if not os.path.exists(vis_path + exp_folder + traj):
-        os.makedirs(vis_path + exp_folder + traj)
+    if not os.path.exists(vis_path + exp_folder + traj): # + '_heart'):
+        os.makedirs(vis_path + exp_folder + traj) # + '_heart')
 
     # iterate through a g.t. trajectory with n_subgoal_steps size
     for i in range(0, goal_idx, n_subgoal_steps):
-        full_save_path = vis_path + exp_folder + traj + '/'
+        full_save_path = vis_path + exp_folder + traj + '/' # '_heart' + '/'
         # load in the state
         if i == 0:
             state_path = traj_path + '/unnormalized_pointcloud' + str(i) + '.npy'
@@ -201,7 +204,7 @@ for elem in tqdm(traj_list):
         gt_subgoal_pcl = o3d.geometry.PointCloud()
         gt_subgoal_pcl.points = o3d.utility.Vector3dVector(gt_subgoal)
         gt_subgoal_pcl.colors = o3d.utility.Vector3dVector(generate_colormap(gt_subgoal, pltmap='summer'))
-        # o3d.visualization.draw_geometries([gt_subgoal_pcl])
+        o3d.visualization.draw_geometries([gt_subgoal_pcl])
 
         # gt_subgoal_list = animate_point_cloud(gt_subgoal, view='isometric', pltmap='summer')
         # print("saving gif...")
@@ -213,7 +216,7 @@ for elem in tqdm(traj_list):
         one_step_pcl = o3d.geometry.PointCloud()
         one_step_pcl.points = o3d.utility.Vector3dVector(best_subgoal)
         one_step_pcl.colors = o3d.utility.Vector3dVector(generate_colormap(best_subgoal, pltmap='autumn'))
-        # o3d.visualization.draw_geometries([gt_subgoal_pcl, one_step_pcl])
+        o3d.visualization.draw_geometries([one_step_pcl])
 
         # autoregressive_subgoal_list = animate_point_cloud(best_subgoal, view='isometric', pltmap='autumn')
         # print("saving gif...")

@@ -1,0 +1,4 @@
+Epoch: 0, Test Loss: 0.16268660420296238
+Epoch: 0, Train Loss: 0.2113025696327289
+Epoch: 5, Test Loss: 0.027526514476859103
+Epoch: 5, Train Loss: 0.031435500293349225

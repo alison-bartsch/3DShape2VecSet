@@ -3,7 +3,7 @@ import open3d as o3d
 from tqdm import tqdm
 from pcl_animation_gif_generator import generate_colormap, animate_point_cloud, make_gif, make_video
 
-step_size_list = [3,5] # [1,3,5,7]
+step_size_list = [3,5,7] # [1,3,5,7]
 
 # traj_list = [('/Trajectory0', 32), 
 #             ('/Trajectory1', 26), 
@@ -12,7 +12,8 @@ step_size_list = [3,5] # [1,3,5,7]
 #             ('/Trajectory4', 17), 
 #             ('/Trajectory5', 23)]
 
-traj_list = [('/Trajectory2', 26), 
+traj_list = [('/Trajectory0', 32), 
+             ('/Trajectory2', 26), 
              ('/Trajectory5', 23)]
 
 base_path = '/home/alison/Documents/GitHub/subgoal_diffusion/subgoal_evals/autoregressive_vis/'
@@ -34,7 +35,7 @@ for n_subgoal_steps in tqdm(step_size_list):
             # generate and save gif to the same directory
             gt_subgoal_list = animate_point_cloud(gt_pcl, view='isometric', pltmap='summer')
             print("saving gif...")
-            make_gif(gt_subgoal_list, filename=traj_path+'/gt_subgoal'+str(i)+'.gif', duration=100)
+            make_gif(gt_subgoal_list, filename=traj_path+'/gt_subgoal'+str(i)+'.gif', duration=50)
             print("done!")
 
             # load in the autoregressive point cloud
@@ -45,5 +46,5 @@ for n_subgoal_steps in tqdm(step_size_list):
             # generate and save gif to the same directory
             autoregressive_subgoal_list = animate_point_cloud(autoregressive_pcl, view='isometric', pltmap='autumn')
             print("saving gif...")
-            make_gif(autoregressive_subgoal_list, filename=traj_path+'/autoregressive_subgoal'+str(i)+'.gif', duration=100)
+            make_gif(autoregressive_subgoal_list, filename=traj_path+'/autoregressive_subgoal'+str(i)+'.gif', duration=50)
             print("done!")
